@@ -1,4 +1,4 @@
-name: Build ipcheck-list
+name: Build ipcheck-list artifacts
 
 on:
   push:
@@ -33,28 +33,36 @@ jobs:
           go run ./ --datapath="${GITHUB_WORKSPACE}/data"
           cp dlc.dat "${GITHUB_WORKSPACE}/ipcheck-list.dat"
 
-      - name: Install sing-box
-        run: curl -fsSL https://sing-box.app/install.sh | sh
-
-      - name: Build ipcheck-list.json from data/ipcheck-list
+      - name: Build ipcheck-list.txt and ipcheck-list.json
         run: |
           python3 <<'PY'
           import json
           from pathlib import Path
 
           src = Path("data/ipcheck-list")
-          out = Path("ipcheck-list.json")
+          txt_out = Path("ipcheck-list.txt")
+          json_out = Path("ipcheck-list.json")
 
           domains = []
+          txt_lines = []
+
           for raw in src.read_text(encoding="utf-8").splitlines():
               line = raw.strip()
               if not line or line.startswith("#"):
                   continue
+
               if line.startswith("domain:"):
-                  domains.append(line[len("domain:"):].strip())
+                  domain = line[len("domain:"):].strip()
               else:
-                  # если хочешь, можно позже расширить под full:/keyword:/regexp:
-                  domains.append(line)
+                  domain = line.strip()
+
+              if not domain:
+                  continue
+
+              domains.append(domain)
+              txt_lines.append(f".{domain}")
+
+          txt_out.write_text("\n".join(txt_lines) + "\n", encoding="utf-8")
 
           data = {
               "version": 3,
@@ -65,11 +73,14 @@ jobs:
               ]
           }
 
-          out.write_text(
+          json_out.write_text(
               json.dumps(data, ensure_ascii=False, indent=2) + "\n",
               encoding="utf-8"
           )
           PY
+
+      - name: Install sing-box
+        run: curl -fsSL https://sing-box.app/install.sh | sudo bash
 
       - name: Build ipcheck-list.srs
         run: sing-box rule-set compile --output ipcheck-list.srs ipcheck-list.json
@@ -78,7 +89,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add ipcheck-list.dat ipcheck-list.json ipcheck-list.srs
+          git add ipcheck-list.dat ipcheck-list.txt ipcheck-list.json ipcheck-list.srs
           git diff --cached --quiet && exit 0
           git commit -m "Update ipcheck-list artifacts"
           git push
