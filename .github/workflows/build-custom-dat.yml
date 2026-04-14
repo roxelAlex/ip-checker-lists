@@ -35,7 +35,7 @@ jobs:
 
       - name: Build ipcheck-list.json and ipcheck-list.mihomo.txt
         run: |
-          python3 <<'PY'
+          python3 - <<'PY'
           import json
           from pathlib import Path
 
@@ -54,7 +54,7 @@ jobs:
               if line.startswith("domain:"):
                   domain = line[len("domain:"):].strip()
               else:
-                  domain = line.strip()
+                  domain = line
 
               if not domain:
                   continue
@@ -75,7 +75,10 @@ jobs:
               json.dumps(data, ensure_ascii=False, indent=2) + "\n",
               encoding="utf-8"
           )
-          mihomo_txt_out.write_text("\n".join(mihomo_lines) + "\n", encoding="utf-8")
+          mihomo_txt_out.write_text(
+              "\n".join(mihomo_lines) + "\n",
+              encoding="utf-8"
+          )
           PY
 
       - name: Install sing-box
@@ -84,9 +87,9 @@ jobs:
       - name: Build ipcheck-list.srs
         run: sing-box rule-set compile --output ipcheck-list.srs ipcheck-list.json
 
-      - name: Download mihomo binary
+      - name: Resolve latest mihomo binary URL
         run: |
-          python3 <<'PY'
+          python3 - <<'PY' > mihomo_url.txt
           import json
           import urllib.request
 
@@ -105,8 +108,10 @@ jobs:
               raise SystemExit("No suitable mihomo linux amd64 asset found")
 
           print(url)
-          PY > mihomo_url.txt
+          PY
 
+      - name: Download mihomo binary
+        run: |
           curl -fsSL "$(cat mihomo_url.txt)" -o mihomo.gz
           gunzip -f mihomo.gz
           chmod +x mihomo
