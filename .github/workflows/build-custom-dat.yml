@@ -1,10 +1,10 @@
-name: Build custom.dat
+name: Build ipcheck-list
 
 on:
   push:
     paths:
-      - 'data/ipcheck'
-      - '.github/workflows/build-custom-dat.yml'
+      - 'data/ipcheck-list'
+      - '.github/workflows/build-ipcheck-list.yml'
   workflow_dispatch:
 
 permissions:
@@ -26,18 +26,59 @@ jobs:
       - name: Clone domain-list-community
         run: git clone https://github.com/v2fly/domain-list-community.git dlc
 
-      - name: Build custom.dat
+      - name: Build ipcheck-list.dat
         run: |
           cd dlc
           go mod download
           go run ./ --datapath="${GITHUB_WORKSPACE}/data"
-          cp dlc.dat "${GITHUB_WORKSPACE}/custom.dat"
+          cp dlc.dat "${GITHUB_WORKSPACE}/ipcheck-list.dat"
 
-      - name: Commit custom.dat if changed
+      - name: Install sing-box
+        run: curl -fsSL https://sing-box.app/install.sh | sh
+
+      - name: Build ipcheck-list.json from data/ipcheck-list
+        run: |
+          python3 <<'PY'
+          import json
+          from pathlib import Path
+
+          src = Path("data/ipcheck-list")
+          out = Path("ipcheck-list.json")
+
+          domains = []
+          for raw in src.read_text(encoding="utf-8").splitlines():
+              line = raw.strip()
+              if not line or line.startswith("#"):
+                  continue
+              if line.startswith("domain:"):
+                  domains.append(line[len("domain:"):].strip())
+              else:
+                  # если хочешь, можно позже расширить под full:/keyword:/regexp:
+                  domains.append(line)
+
+          data = {
+              "version": 3,
+              "rules": [
+                  {
+                      "domain_suffix": domains
+                  }
+              ]
+          }
+
+          out.write_text(
+              json.dumps(data, ensure_ascii=False, indent=2) + "\n",
+              encoding="utf-8"
+          )
+          PY
+
+      - name: Build ipcheck-list.srs
+        run: sing-box rule-set compile --output ipcheck-list.srs ipcheck-list.json
+
+      - name: Commit generated files
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add custom.dat
+          git add ipcheck-list.dat ipcheck-list.json ipcheck-list.srs
           git diff --cached --quiet && exit 0
-          git commit -m "Update custom.dat"
+          git commit -m "Update ipcheck-list artifacts"
           git push
