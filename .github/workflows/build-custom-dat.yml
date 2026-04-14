@@ -33,18 +33,18 @@ jobs:
           go run ./ --datapath="${GITHUB_WORKSPACE}/data"
           cp dlc.dat "${GITHUB_WORKSPACE}/ipcheck-list.dat"
 
-      - name: Build ipcheck-list.txt and ipcheck-list.json
+      - name: Build ipcheck-list.json and ipcheck-list.mihomo.txt
         run: |
           python3 <<'PY'
           import json
           from pathlib import Path
 
           src = Path("data/ipcheck-list")
-          txt_out = Path("ipcheck-list.txt")
           json_out = Path("ipcheck-list.json")
+          mihomo_txt_out = Path("ipcheck-list.mihomo.txt")
 
           domains = []
-          txt_lines = []
+          mihomo_lines = []
 
           for raw in src.read_text(encoding="utf-8").splitlines():
               line = raw.strip()
@@ -60,9 +60,7 @@ jobs:
                   continue
 
               domains.append(domain)
-              txt_lines.append(f".{domain}")
-
-          txt_out.write_text("\n".join(txt_lines) + "\n", encoding="utf-8")
+              mihomo_lines.append(f".{domain}")
 
           data = {
               "version": 3,
@@ -77,6 +75,7 @@ jobs:
               json.dumps(data, ensure_ascii=False, indent=2) + "\n",
               encoding="utf-8"
           )
+          mihomo_txt_out.write_text("\n".join(mihomo_lines) + "\n", encoding="utf-8")
           PY
 
       - name: Install sing-box
@@ -85,11 +84,45 @@ jobs:
       - name: Build ipcheck-list.srs
         run: sing-box rule-set compile --output ipcheck-list.srs ipcheck-list.json
 
+      - name: Download mihomo binary
+        run: |
+          python3 <<'PY'
+          import json
+          import urllib.request
+
+          api = "https://api.github.com/repos/MetaCubeX/mihomo/releases/latest"
+          with urllib.request.urlopen(api) as r:
+              data = json.load(r)
+
+          url = None
+          for asset in data.get("assets", []):
+              name = asset.get("name", "")
+              if name.startswith("mihomo-linux-amd64") and name.endswith(".gz"):
+                  url = asset["browser_download_url"]
+                  break
+
+          if not url:
+              raise SystemExit("No suitable mihomo linux amd64 asset found")
+
+          print(url)
+          PY > mihomo_url.txt
+
+          curl -fsSL "$(cat mihomo_url.txt)" -o mihomo.gz
+          gunzip -f mihomo.gz
+          chmod +x mihomo
+          sudo mv mihomo /usr/local/bin/mihomo
+
+      - name: Build ipcheck-list.mrs
+        run: mihomo convert-ruleset domain text ipcheck-list.mihomo.txt ipcheck-list.mrs
+
+      - name: Cleanup temporary files
+        run: rm -f mihomo_url.txt ipcheck-list.mihomo.txt
+
       - name: Commit generated files
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add ipcheck-list.dat ipcheck-list.txt ipcheck-list.json ipcheck-list.srs
+          git add ipcheck-list.dat ipcheck-list.json ipcheck-list.srs ipcheck-list.mrs
           git diff --cached --quiet && exit 0
           git commit -m "Update ipcheck-list artifacts"
           git push
