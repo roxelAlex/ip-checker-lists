@@ -1,0 +1,43 @@
+name: Build custom.dat
+
+on:
+  push:
+    paths:
+      - 'data/ipcheck'
+      - '.github/workflows/build-custom-dat.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v5
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+
+      - name: Clone domain-list-community
+        run: git clone https://github.com/v2fly/domain-list-community.git dlc
+
+      - name: Build custom.dat
+        run: |
+          cd dlc
+          go mod download
+          go run ./ --datapath="${GITHUB_WORKSPACE}/data"
+          cp dlc.dat "${GITHUB_WORKSPACE}/custom.dat"
+
+      - name: Commit custom.dat if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add custom.dat
+          git diff --cached --quiet && exit 0
+          git commit -m "Update custom.dat"
+          git push
