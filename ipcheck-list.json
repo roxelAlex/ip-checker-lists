@@ -63,7 +63,22 @@
         "kinsta.com",
         "ipchicken.com",
         "whatsmyip.net",
-        "ifconfig.co"
+        "ifconfig.co",
+        "api.beacondb.net",
+        "api.ipapi.is",
+        "iplocate.io",
+        "ip.mail.ru",
+        "api4.ipify.org",
+        "api6.ipify.org",
+        "ipv4.ifconfig.me",
+        "ipv6.ifconfig.me",
+        "domain.ifconfig.me",
+        "ipv4-internet.yandex.net",
+        "ipv6-internet.yandex.net",
+        "checkip.amazonaws.com",
+        "api.ipify.org",
+        "api-ipv4.ip.sb",
+        "api-ipv6.ip.sb"
       ]
     }
   ]
